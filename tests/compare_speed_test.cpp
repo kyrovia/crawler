@@ -1,5 +1,6 @@
 #include "crawler/blocking_queue.hpp"
 #include "crawler/http.hpp"
+#include "crawler/thread_pool.hpp"
 #include "crawler/walk.hpp"
 
 #include <gtest/gtest.h>
@@ -15,6 +16,13 @@
 #include <vector>
 
 namespace {
+
+enum class CrawlKind { Serial, Queue, Pool };
+
+struct SpeedParam {
+    CrawlKind kind;
+    int workers;
+};
 
 struct DownloadJob {
     std::filesystem::path dest;
@@ -65,6 +73,20 @@ void crawl_parallel(const std::string& url, int worker_count) {
     }
 }
 
+void crawl_thread_pool(const std::string& url, int worker_count) {
+    crawler::ThreadPool pool(static_cast<std::size_t>(worker_count));
+    crawler::walk(url, [&](const std::filesystem::path& dest, const std::string& file_url) {
+        pool.submit([dest, file_url] {
+            try {
+                crawler::http_download(file_url, dest);
+            } catch (const std::exception& ex) {
+                crawler::log_line(std::string("error downloading ") + file_url + ": " +
+                                  ex.what());
+            }
+        });
+    });
+}
+
 void clean_dest(const std::string& url) {
     const std::filesystem::path dest = crawler::local_path(url);
     if (dest == std::filesystem::path(".")) {
@@ -91,7 +113,7 @@ std::string test_url() {
 
 }  // namespace
 
-class CompareSpeedTest : public ::testing::TestWithParam<int> {
+class CompareSpeedTest : public ::testing::TestWithParam<SpeedParam> {
 protected:
     static void SetUpTestSuite() { curl_ = new crawler::CurlGlobal(); }
 
@@ -105,36 +127,59 @@ protected:
 
 crawler::CurlGlobal* CompareSpeedTest::curl_ = nullptr;
 
-// GetParam() == 0 表示单线程；其余为工作线程数。
 TEST_P(CompareSpeedTest, ReportsWallTime) {
     const std::string url = test_url();
-    const int workers = GetParam();
+    const SpeedParam param = GetParam();
 
     clean_dest(url);
 
     long long ms = 0;
     ASSERT_NO_THROW({
-        if (workers == 0) {
-            ms = time_ms([&] { crawl_serial(url); });
-        } else {
-            ms = time_ms([&] { crawl_parallel(url, workers); });
+        switch (param.kind) {
+            case CrawlKind::Serial:
+                ms = time_ms([&] { crawl_serial(url); });
+                break;
+            case CrawlKind::Queue:
+                ms = time_ms([&] { crawl_parallel(url, param.workers); });
+                break;
+            case CrawlKind::Pool:
+                ms = time_ms([&] { crawl_thread_pool(url, param.workers); });
+                break;
         }
     });
 
-    if (workers == 0) {
-        std::cout << "serial: " << ms << " ms\n";
-    } else {
-        std::cout << workers << " threads: " << ms << " ms\n";
+    switch (param.kind) {
+        case CrawlKind::Serial:
+            std::cout << "serial: " << ms << " ms\n";
+            break;
+        case CrawlKind::Queue:
+            std::cout << "queue " << param.workers << " threads: " << ms << " ms\n";
+            break;
+        case CrawlKind::Pool:
+            std::cout << "pool " << param.workers << " threads: " << ms << " ms\n";
+            break;
     }
     RecordProperty("wall_ms", static_cast<int>(ms));
     EXPECT_GT(ms, 0);
 }
 
-INSTANTIATE_TEST_SUITE_P(WorkerCount, CompareSpeedTest,
-                         ::testing::Values(0, 12, 10, 8, 6, 4, 2),
-                         [](const ::testing::TestParamInfo<int>& info) {
-                             if (info.param == 0) {
-                                 return std::string("Serial");
-                             }
-                             return "Threads" + std::to_string(info.param);
-                         });
+INSTANTIATE_TEST_SUITE_P(
+    WorkerCount, CompareSpeedTest,
+    ::testing::Values(SpeedParam{CrawlKind::Serial, 0},
+                      SpeedParam{CrawlKind::Queue, 12}, SpeedParam{CrawlKind::Queue, 10},
+                      SpeedParam{CrawlKind::Queue, 8}, SpeedParam{CrawlKind::Queue, 6},
+                      SpeedParam{CrawlKind::Queue, 4}, SpeedParam{CrawlKind::Queue, 2},
+                      SpeedParam{CrawlKind::Pool, 12}, SpeedParam{CrawlKind::Pool, 10},
+                      SpeedParam{CrawlKind::Pool, 8}, SpeedParam{CrawlKind::Pool, 6},
+                      SpeedParam{CrawlKind::Pool, 4}, SpeedParam{CrawlKind::Pool, 2}),
+    [](const ::testing::TestParamInfo<SpeedParam>& info) {
+        switch (info.param.kind) {
+            case CrawlKind::Serial:
+                return std::string("Serial");
+            case CrawlKind::Queue:
+                return "Queue" + std::to_string(info.param.workers);
+            case CrawlKind::Pool:
+                return "Pool" + std::to_string(info.param.workers);
+        }
+        return std::string("Unknown");
+    });
