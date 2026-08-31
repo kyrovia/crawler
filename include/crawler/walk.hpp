@@ -11,8 +11,9 @@
 
 namespace crawler {
 
-inline constexpr std::string_view kPathMarker = "gnu/bool/";
-inline constexpr std::string_view kDefaultUrl = "https://ftp.gnu.org/gnu/bool/";
+inline constexpr std::string_view kPathMarker = "gnu/ed/";
+inline constexpr std::string_view kDefaultUrl =
+    "https://mirrors.tuna.tsinghua.edu.cn/gnu/ed/";
 inline constexpr int kWorkerCount = 8;
 
 bool is_directory_url(std::string_view url);

@@ -21,3 +21,13 @@ add_executable(crawler src/crawler.cpp)
 target_link_libraries(crawler PRIVATE crawler_core)
 target_compile_options(crawler PRIVATE -Wall -Wextra -Wpedantic)
 
+enable_testing()
+find_package(GTest REQUIRED)
+
+add_executable(compare_speed_test tests/compare_speed_test.cpp)
+target_link_libraries(compare_speed_test PRIVATE crawler_core GTest::gtest_main)
+target_compile_options(compare_speed_test PRIVATE -Wall -Wextra -Wpedantic)
+
+include(GoogleTest)
+gtest_discover_tests(compare_speed_test PROPERTIES TIMEOUT 180)
+
