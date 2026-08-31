@@ -1,10 +1,10 @@
 #pragma once
 
 #include <condition_variable>
-#include <functional>
+#include <functional>//函数包装器 
 #include <mutex>
 #include <queue>
-#include <stdexcept>
+#include <stdexcept>//具体的异常类
 #include <thread>
 #include <utility>
 #include <vector>
@@ -64,12 +64,12 @@ private:
                 job = std::move(jobs_.front());
                 jobs_.pop();
             }
-            job();
+            job();//执行job里的函数
         }
     }
 
     std::vector<std::thread> workers_;
-    std::queue<std::function<void()>> jobs_;
+    std::queue<std::function<void()>> jobs_;//job存储任务
     std::mutex mutex_;
     std::condition_variable cv_;
     bool stop_ = false;

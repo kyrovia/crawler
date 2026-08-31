@@ -1,5 +1,7 @@
 /build/
 /cmake-build-*/
 /.cache/
+/CMakeFiles/
+/CMakeCache.txt
 *.o
 *.a
