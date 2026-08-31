@@ -21,6 +21,3 @@ add_executable(crawler src/crawler.cpp)
 target_link_libraries(crawler PRIVATE crawler_core)
 target_compile_options(crawler PRIVATE -Wall -Wextra -Wpedantic)
 
-add_executable(crawler_concurrent src/crawler_concurrent.cpp)
-target_link_libraries(crawler_concurrent PRIVATE crawler_core)
-target_compile_options(crawler_concurrent PRIVATE -Wall -Wextra -Wpedantic)
