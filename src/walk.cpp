@@ -19,7 +19,9 @@ bool is_directory_url(std::string_view url) {
 }
 
 bool should_follow(std::string_view href) {
-    return href.find("/~vkepuska") != 0 && href.find('?') != 0;
+    return !href.empty() && href.front() != '?' && href.front() != '/' &&
+           href.front() != '#' && href.find("://") == std::string_view::npos &&
+           href.find("..") == std::string_view::npos;
 }
 
 std::filesystem::path local_path(std::string_view url) {
